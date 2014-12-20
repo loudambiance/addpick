@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 #####################################################################
 # Variables
@@ -9,8 +9,12 @@ pickpath="/home/danl/bin/"
 #Variables
 argcount=$#
 pickfile="repopicks"
-commitnumber=$1
-gerriturl="http://review.cyanogenmod.org/changes/?q=$commitnumber"
+gerriturl="http://review.cyanogenmod.org/changes/?q="
+picklist=""
+picklistarray=""
+pick=""
+searchcond=""
+functype=0
 
 #####################################################################
 # Utility Functions
@@ -27,19 +31,91 @@ isnumber(){
 	test "$1" && printf '%f' "$1" >/dev/null 2>/dev/null; 
 }
 
-# Verify user entered at least one argument and that argument is a number
-argcheck () {
-	#require one argument
-	if [ $argcount -ne 1 ]
-	then
-		die "Exactly one argument is required."
-	fi	
+printhelp () {
+		echo -e '\E[37;44m'"\033[1mUsage:\033[0m addpick [OPTION]"
+		echo "  -h|--help                       : Show this help message"
+		echo "  -p|--search <pick>              : The name of the device"
+		echo "  -l|--list <pick,pick,...>       : The version of Android/CM"
+		echo "  -s|--search <search conditions> : Search conditions used on Gerrit. You should be"
+		echo "                                    really restrictive, or you will add a bunch of"
+		echo "				          commits you don't want all at once." 
+		echo "                                    Ex: status:open+branch:cm-12.0+topic:appops-su"
+}
 
-	#reguire argument to be a number
-	if ! isnumber $commitnumber
+# Verify user entered correct arguments
+argcheck () {
+	#require two arguments
+	if [ $# -eq 1 ]
 	then
-		die "Argument must be a number"
+		case $1 in
+			-h|--help)
+				printhelp
+				exit 0
+				;;
+			*)
+				printhelp
+				exit 1
+				;;
+		esac
+	elif [ $# -ne 2 ]
+	then	
+		printhelp
+		exit 1
 	fi
+
+	while [ $# -gt 0 ]; do
+    		case $1 in
+        		-p|--pick)
+                		shift
+                		pick=$1
+				functype=1
+                		;;
+            		-l|--list)
+                		shift
+                		picklist=$1
+				functype=2
+                		;;
+            		-s|--search)
+				shift
+				searchcond=$1
+				functype=3
+                		;;
+			*)	
+				;;
+    		esac
+		shift
+	done
+	
+	case $functype in
+		0)
+			die "Something has gone terribly terribly wrong."
+			;;
+		1)	
+			if ! isnumber $pick
+			then
+				die "Argument for -p|--pick must be a integer"
+			fi
+			;;
+		2)
+			OLD_IFS="$IFS"
+			IFS=","
+			picklistarray=($picklist)
+			IFS="$OLD_IFS"
+			
+			for x in "${picklistarray[@]}"
+			do
+				if ! isnumber $x
+				then
+					die "One of the picks in list is not a number"
+				fi
+			done
+			;;
+		3)	if [ $searchcond = "" ]
+			then
+				die "A search condition is required."
+			fi
+			;;
+	esac
 }
 
 # Verify commit number returns a dataset
@@ -61,21 +137,49 @@ verifycommit () {
 	fi
 }
 
+# Single pick
+singlepick () {
+	commit=$(curl -sS $gerriturl$1)
+	verifycommit
+	commitsubject=$(echo "$commit" | grep "\"subject\":" | sed 's/.*".*".*"\(.*\)",/\1/')
+	commitstatus=$(echo "$commit" | grep "\"status\":" | sed 's/.*".*".*"\(.*\)",/\1/')
+	if [ $commitstatus = "MERGED" ]
+	then
+		echo "This commit [$1] has already been merge, no need to add it to your repo picks"
+		return
+	fi
+	echo "$1 #$commitsubject" #| tee -a $pickpath$pickfile
+}
+
+# Multiple pick
+multipick () {
+	for looppick in "${picklistarray[@]}"
+	do
+		singlepick $looppick
+	done
+}
+
+# Search Gerrit
+searchlist () {
+
+	picklistarray=( $(curl -sS $gerriturl$searchcond | grep _number | sed 's/.*".*": \([0-9]*\),/\1/') )
+	multipick
+}
+
 #####################################################################
 # Main function
 #####################################################################
 main (){
-	argcheck
-	commit=$(curl -sS $gerriturl)
-	verifycommit
-	commitsubject=$(echo "$commit" | grep "\"subject\":" | sed 's/".*".*"\(.*\)",/\1/')
-	commitstatus=$(echo "$commit" | grep "\"status\":" | sed 's/".*".*"\(.*\)",/\1/')
-	if [ $commitstatus = "MERGED" ]
-	then
-		die "This commit has already been merge, no need to add it to your repo picks"
-	fi
-	echo "$commitnumber #$commitsubject" | tee -a $pickpath$pickfile
+	argcheck $@
+	
+	case $functype in
+		1)	singlepick $pick;;
+		2)	multipick;;
+		3)	searchlist;;
+		*)	die "You should not be here... error..."
+	esac
+	exit	
 }
 
 #runit!
-main
+main $@
