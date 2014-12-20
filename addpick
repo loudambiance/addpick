@@ -1,0 +1,81 @@
+#!/bin/sh
+
+#####################################################################
+# Variables
+#####################################################################
+#Paths
+pickpath="/home/danl/bin/"
+
+#Variables
+argcount=$#
+pickfile="repopicks"
+commitnumber=$1
+gerriturl="http://review.cyanogenmod.org/changes/?q=$commitnumber"
+
+#####################################################################
+# Utility Functions
+#####################################################################
+
+# Die function
+die (){
+	echo >&2 "$@"
+	exit 1
+}
+
+#Confirm commitnumber is a number
+isnumber(){ 
+	test "$1" && printf '%f' "$1" >/dev/null 2>/dev/null; 
+}
+
+# Verify user entered at least one argument and that argument is a number
+argcheck () {
+	#require one argument
+	if [ $argcount -ne 1 ]
+	then
+		die "Exactly one argument is required."
+	fi	
+
+	#reguire argument to be a number
+	if ! isnumber $commitnumber
+	then
+		die "Argument must be a number"
+	fi
+}
+
+# Verify commit number returns a dataset
+verifycommit () {
+	commitlinecount=$(echo "$commit" | wc -l)
+	if [ $commitlinecount -lt 4 ]
+	then	
+		die "The commit number you entered was not valid, or there was an error requesting info about it."
+	fi
+	subjectcount=$(echo "$commit" | grep "\"subject\":" | wc -l)
+	if [ $subjectcount -lt 1 ]
+	then
+		die "Commit has returned no subject data element, but had more than 4 data elements, this shouldn't be possible."	
+	fi
+		statuscount=$(echo "$commit" | grep "\"status\":" | wc -l)
+	if [ $statuscount -lt 1 ]
+	then
+		die "Commit has returned no status data element, but had more than 4 data elements, this shouldn't be possible."	
+	fi
+}
+
+#####################################################################
+# Main function
+#####################################################################
+main (){
+	argcheck
+	commit=$(curl -sS $gerriturl)
+	verifycommit
+	commitsubject=$(echo "$commit" | grep "\"subject\":" | sed 's/".*".*"\(.*\)",/\1/')
+	commitstatus=$(echo "$commit" | grep "\"status\":" | sed 's/".*".*"\(.*\)",/\1/')
+	if [ $commitstatus = "MERGED" ]
+	then
+		die "This commit has already been merge, no need to add it to your repo picks"
+	fi
+	echo "$commitnumber #$commitsubject" >> $pickpath$pickfile
+}
+
+#runin!
+main
