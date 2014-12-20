@@ -74,7 +74,7 @@ main (){
 	then
 		die "This commit has already been merge, no need to add it to your repo picks"
 	fi
-	echo "$commitnumber #$commitsubject" >> $pickpath$pickfile
+	echo "$commitnumber #$commitsubject" | tee -a $pickpath$pickfile
 }
 
 #runit!
