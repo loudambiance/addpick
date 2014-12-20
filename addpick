@@ -77,5 +77,5 @@ main (){
 	echo "$commitnumber #$commitsubject" >> $pickpath$pickfile
 }
 
-#runin!
+#runit!
 main
