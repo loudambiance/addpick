@@ -34,8 +34,8 @@ isnumber(){
 printhelp () {
 		echo -e '\E[37;44m'"\033[1mUsage:\033[0m addpick [OPTION]"
 		echo "  -h|--help                       : Show this help message"
-		echo "  -p|--search <pick>              : The name of the device"
-		echo "  -l|--list <pick,pick,...>       : The version of Android/CM"
+		echo "  -p|--pick <pick>                : Single pick from Gerrit"
+		echo "  -l|--list <pick,pick,...>       : List of picks from Gerrit"
 		echo "  -s|--search <search conditions> : Search conditions used on Gerrit. You should be"
 		echo "                                    really restrictive, or you will add a bunch of"
 		echo "				          commits you don't want all at once." 
